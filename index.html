@@ -50,14 +50,15 @@
       max-width: 400px;
       min-height: 70px;
       color: #ffffff;
-      font-size: 16px;
+      font-size: 15px;
       margin-bottom: 15px;
+      word-wrap: break-word;
     }
-    .input-area {
+    .input-area, .key-box {
       display: flex;
       width: 100%;
       max-width: 400px;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 12px;
     }
     input {
@@ -67,10 +68,10 @@
       border: 1px solid #00f3ff;
       background: #111927;
       color: white;
-      font-size: 15px;
+      font-size: 14px;
     }
     button {
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-radius: 8px;
       border: none;
       background: #00f3ff;
@@ -78,22 +79,16 @@
       font-weight: bold;
       cursor: pointer;
     }
-    .key-box {
-      display: flex;
-      width: 100%;
-      max-width: 400px;
-      gap: 8px;
-      margin-top: 10px;
-    }
     .key-box input { font-size: 13px; padding: 8px; }
-    .key-box button { font-size: 13px; padding: 8px 12px; background: #1e293b; color: #00f3ff; border: 1px solid #00f3ff; }
+    .key-box button { font-size: 12px; padding: 8px 10px; background: #1e293b; color: #00f3ff; border: 1px solid #00f3ff; }
+    .clear-btn { background: #3b1e26 !important; color: #ff5c8a !important; border-color: #ff5c8a !important; }
   </style>
 </head>
 <body>
 
   <div class="jarvis-orb" id="orb" onclick="activateJarvis()">JARVIS</div>
   <div id="status">बोलने के लिए गोले को दबाएं या नीचे लिखें...</div>
-  <div id="responseBox">नमस्ते विष्णु! नीचे अपनी AIza वाली API Key सेव करें।</div>
+  <div id="responseBox">नमस्ते विष्णु! नीचे अपनी नई AIza वाली API Key पेस्ट करके सेव करें।</div>
 
   <div class="input-area">
     <input type="text" id="textCmd" placeholder="यहाँ लिखकर भी आदेश दें...">
@@ -101,8 +96,9 @@
   </div>
 
   <div class="key-box">
-    <input type="password" id="apiKeyInput" placeholder="यहाँ अपनी AIza... Key पेस्ट करें">
-    <button onclick="saveKey()">Key सेव करें</button>
+    <input type="text" id="apiKeyInput" placeholder="AIza... Key पेस्ट करें">
+    <button onclick="saveKey()">सेव</button>
+    <button class="clear-btn" onclick="clearKey()">हटाएं</button>
   </div>
 
   <script>
@@ -114,15 +110,21 @@
       }
     };
 
+    function clearKey() {
+      localStorage.removeItem("jarvis_api_key");
+      document.getElementById('apiKeyInput').value = "";
+      document.getElementById('responseBox').innerText = "पुरानी Key हटा दी गई है। अब नई AIza... Key पेस्ट करके 'सेव' दबाएं।";
+    }
+
     function saveKey() {
       const val = document.getElementById('apiKeyInput').value.trim();
       if (!val.startsWith("AIza")) {
-        alert("यह AQ वाली Key नहीं चलेगी! कृपया aistudio.google.com से AIza से शुरू होने वाली Key कॉपी करके डालें।");
+        alert("यह सही Key नहीं है! कृपया 'हटाएं' दबाएं और AIza से शुरू होने वाली Key पेस्ट करें।");
         return;
       }
       localStorage.setItem("jarvis_api_key", val);
-      document.getElementById('responseBox').innerText = "API Key सुरक्षित सेव हो गई! अब गोले को दबाकर बात करें।";
-      speakHindi("API Key सेव हो गई है विष्णु, अब मैं तैयार हूँ।");
+      document.getElementById('responseBox').innerText = "नई API Key सेव हो गई! अब 'हेलो' बोलें या लिखकर भेजें।";
+      speakHindi("नई API Key सेव हो गई है विष्णु, अब मैं तैयार हूँ।");
     }
 
     function speakHindi(text) {
@@ -145,12 +147,10 @@
       const orb = document.getElementById('orb');
       const status = document.getElementById('status');
       const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-      
       if (!SpeechRec) {
         status.innerText = "यह ब्राउज़र माइक सपोर्ट नहीं करता, इसे Chrome में खोलें।";
         return;
       }
-
       const recognition = new SpeechRec();
       recognition.lang = 'hi-IN';
       orb.classList.add('listening');
@@ -167,8 +167,18 @@
         orb.classList.remove('listening');
         status.innerText = "माइक में समस्या (" + e.error + ") — दोबारा दबाएं या नीचे लिखें।";
       };
-
       recognition.start();
+    }
+
+    async function callGemini(apiKey, model, promptText) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "तुम जार्विस हो। बहुत छोटे और सटीक हिंदी वाक्यों में जवाब दो (2 लाइन में): " + promptText }] }]
+        })
+      });
+      return await res.json();
     }
 
     async function processCommand(command) {
@@ -193,7 +203,7 @@
       }
 
       if (!apiKey) {
-        const msg = "पहले नीचे वाले बॉक्स में अपनी AIza वाली API Key डालकर सेव करें।";
+        const msg = "पहले नीचे अपनी AIza वाली API Key डालकर 'सेव' दबाएं।";
         responseBox.innerText = msg;
         speakHindi(msg);
         return;
@@ -201,17 +211,10 @@
 
       responseBox.innerText = "सोच रहा हूँ...";
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{ text: "तुम जार्विस हो। बहुत छोटे और सटीक हिंदी वाक्यों में जवाब दो (2 लाइन में): " + command }]
-            }]
-          })
-        });
-
-        const data = await response.json();
+        let data = await callGemini(apiKey, "gemini-2.5-flash", command);
+        if (data.error) {
+          data = await callGemini(apiKey, "gemini-2.0-flash", command);
+        }
         if (data.error) {
           responseBox.innerText = "Google एरर: " + data.error.message;
           return;
@@ -219,9 +222,8 @@
         const aiReply = data.candidates[0].content.parts[0].text.replace(/\*/g, "");
         responseBox.innerText = aiReply;
         speakHindi(aiReply);
-
       } catch (error) {
-        responseBox.innerText = "इंटरनेट या कनेक्शन में समस्या है, कृपया जांचें।";
+        responseBox.innerText = "इंटरनेट या कनेक्शन में समस्या है: " + error.message;
       }
     }
   </script>
